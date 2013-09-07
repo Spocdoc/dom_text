@@ -1,0 +1,19 @@
+{
+  "name": "dom_text",
+  "version": "0.0.0",
+  "description": "ERROR: No README.md file found!",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": "",
+  "author": "",
+  "private": true,
+  "dependencies": {
+  },
+  "DEBUG local dependencies": {
+    "dom-fork": "0.x",
+    "debug-fork": "0.x",
+    "lodash-fork": "0.x"
+  }
+}
