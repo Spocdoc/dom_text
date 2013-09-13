@@ -1,5 +1,6 @@
 $ = require 'dom-fork'
 _ = require 'lodash-fork'
+require 'dom_selection'
 
 ELEMENT_NODE = 1
 ATTRIBUTE_NODE = 2
@@ -13,22 +14,36 @@ regexSpace = new RegExp _.regexp_s
 require 'debug-fork'
 debug = global.debug 'ace:dom'
 
+visitTextUntil = (visitNode, end, fn) ->
+  if visitNode.nodeType is TEXT_NODE
+    return ret if ret = fn visitNode
+  else
+    children = visitNode.childNodes
+    i = 0
+    iE = if visitNode is end['container'] then end['offset'] else children.length
+
+    while i < iE
+      return ret if ret = visitTextUntil children[i], end, fn
+      ++i
+
+  visitNode is end['container']
+
 visitText = do ->
   inRange = false
 
   visit = (visitNode, start, end, fn) ->
     if visitNode.nodeType is TEXT_NODE
-      return ret if ret = fn visitNode if (start._inRange ||= visitNode is start['container'])
+      return ret if ret = fn visitNode if (inRange ||= visitNode is start['container'])
     else
       children = visitNode.childNodes
-      `var i = visitNode === start['container'] ? (start._inRange=true, start['offset']) : 0`
+      `var i = visitNode === start['container'] ? (inRange=true, start['offset']) : 0`
       iE = if visitNode is end['container'] then end['offset'] else children.length
 
       while i < iE
         return ret if ret = visit children[i], start, end, fn
         ++i
 
-    visitNode is endPoint['container']
+    visitNode is end['container']
 
   (visitNode, start, end, fn) ->
     inRange = false
@@ -76,6 +91,48 @@ visitTextBackwardFn = do ->
   (visitNode, start, endFn, visitFn) ->
     inRange = false
     visit visitNode, start, endFn, visitFn
+
+$['addText'] = (end, text, returnRange) ->
+  if $['isText'] end['container']
+    if end['offset'] >= end['container'].nodeValue.length
+      end['container'].nodeValue += text
+      return unless returnRange
+      return {
+        'start':
+          'container': end['container']
+          'offset': end['container'].nodeValue.length - text.length
+        'end':
+          'container': end['container']
+          'offset': end['container'].nodeValue.length
+        }
+    else
+      node = if end['offset'] then end['container'].splitText(end['offset']) else end['container']
+      node.nodeValue = text + node.nodeValue
+      return unless returnRange
+      return {
+        'start':
+          'container': node
+          'offset': 0
+        'end':
+          'container': node
+          'offset': text.length
+        }
+  else
+    children = end['container'].childNodes
+    node = document.createTextNode text
+    if end['offset'] is children.length
+      end['container'].appendChild node
+    else
+      end['container'].insertBefore node, children[end['offset']]
+    return unless returnRange
+    return {
+      'start':
+        'container': node
+        'offset': 0
+      'end':
+        'container': node
+        'offset': text.length
+      }
 
 
 $['fn']['extend']
@@ -242,11 +299,21 @@ $['fn']['extend']
     else
       text = ''
       visitText @[0], start, end, (node) ->
-        start = if node is startContainer then startOffset else 0
-        end = endOffset if node is endContainer
+        start = if node is start['container'] then start['offset'] else 0
+        end = end['offset'] if node is end['container']
         text += (''+node.nodeValue).substring start, end
         return
       text
+
+  'textOffset': (end) ->
+    offset = 0
+    visitTextUntil @[0], end, (node) ->
+      if node is end['container']
+        offset += end['offset']
+      else if node.nodeValue
+        offset += node.nodeValue.length
+      return
+    offset
 
   'prevText': ->
     node = @[0]
