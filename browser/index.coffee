@@ -14,19 +14,19 @@ regexSpace = new RegExp _.regexp_s
 require 'debug-fork'
 debug = global.debug 'ace:dom'
 
-visitTextUntil = (visitNode, end, fn) ->
+visitTextUntil = (visitNode, endContainer, endOffset, fn) ->
   if visitNode.nodeType is TEXT_NODE
     return ret if ret = fn visitNode
   else
     children = visitNode.childNodes
     i = 0
-    iE = if visitNode is end['container'] then end['offset'] else children.length
+    iE = if visitNode is endContainer then endOffset else children.length
 
     while i < iE
-      return ret if ret = visitTextUntil children[i], end, fn
+      return ret if ret = visitTextUntil children[i], endContainer, endOffset, fn
       ++i
 
-  visitNode is end['container']
+  visitNode is endContainer
 
 visitText = do ->
   inRange = false
@@ -142,6 +142,11 @@ $['fn']['extend']
     while arg = arg.parentNode when node is arg
       return true
     false
+
+  'textOffsetToPos': (offset) ->
+    # TODO
+    0
+
 
   # executes a function, restoring the text selection position within the container afterwards
   'keepSelection': do ->
@@ -268,6 +273,27 @@ $['fn']['extend']
       return
     text
 
+  'isLastChar': (pos) ->
+    node = pos['container']
+    offset = pos['offset']
+    root = @[0]
+
+    if node.nodeType is TEXT_NODE
+      return false if node.nodeValue.length > offset
+      return true if node is root
+    else if offset
+      parent = node
+      unless node = parent.childNodes[offset-1]
+        return false if parent is root
+        node = parent
+
+    loop
+      parent = node.parentNode
+      while node = node.nextSibling
+        return false if node.nodeValue or node.textContent or node.innerText
+      return true if root is parent
+      node = parent
+
   'wordEndUntil': (start, fn) ->
     thisNode = @[0]
     endFn = (node, parent, index) -> {'container': parent, 'offset': index} if fn node
@@ -305,15 +331,31 @@ $['fn']['extend']
         return
       text
 
-  'textOffset': (end) ->
+  'textOffset': (start, end) ->
     offset = 0
-    visitTextUntil @[0], end, (node) ->
-      if node is end['container']
-        offset += end['offset']
-      else if node.nodeValue
-        offset += node.nodeValue.length
-      return
+    thisNode = @[0]
+    unless end
+      if typeof start is 'number'
+        startContainer = thisNode
+        startOffset = start
+      else
+        startContainer = start['container']
+        startOffset = start['offset']
+
+      visitTextUntil thisNode, startContainer, startOffset, (node) ->
+        if node is startContainer
+          offset += startOffset
+        else if node.nodeValue
+          offset += node.nodeValue.length
+        return
+    else
+      visitText thisNode, start, end, (node) ->
+        from = if node is start['container'] then start['offset'] else 0
+        to = if node is end['container'] then end['offset'] else node.nodeValue.length
+        offset += to - from
+        return
     offset
+
 
   'prevText': ->
     node = @[0]
