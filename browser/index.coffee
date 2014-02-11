@@ -14,6 +14,25 @@ regexSpace = new RegExp _.regexp_s
 require 'debug-fork'
 debug = global.debug 'ace:dom'
 
+findOffset = (visitNode, offset) ->
+  visit = (visitNode) ->
+    if visitNode.nodeType is TEXT_NODE
+      if (len = visitNode.nodeValue.length) >= offset
+        return {
+          'container': visitNode
+          'offset': offset
+        }
+      else
+        offset -= len
+    else
+      for child in visitNode.childNodes
+        return ret if ret = visit child
+    return
+
+  visit visitNode
+
+
+
 visitTextUntil = (visitNode, endContainer, endOffset, fn) ->
   if visitNode.nodeType is TEXT_NODE
     return ret if ret = fn visitNode
@@ -144,8 +163,12 @@ $['fn']['extend']
     false
 
   'textOffsetToPos': (offset) ->
-    # TODO
-    0
+    node = @[0]
+
+    findOffset(node, offset) ? {
+      'container': node
+      'offset': (if node.nodeType is TEXT_NODE then node.nodeValue else node.childNodes).length
+    }
 
 
   # executes a function, restoring the text selection position within the container afterwards
